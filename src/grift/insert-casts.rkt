@@ -278,13 +278,7 @@
        [(MRef t)
         (if (completely-static-type? t)
             (Mbox-set! e1 (mk-cast e2-src e2-lbl e2 e2-ty t))
-            ;; OPTIMIZATION: instead of casting e2 from
-            ;; e2-ty to t, then cast it again from t to
-            ;; the runtime type, I cast it from e2-ty to
-            ;; the runtime type directly.
-            ;; Justification: the runtime type is at
-            ;; least as precise as t by semantics.
-            (MBoxCastedSet! e1 e2 e2-ty))])]
+            (MBoxCastedSet! e1 (mk-cast e2-src e2-lbl e2 e2-ty t) t))])]
     [(Mvector (and (Ann _ (cons size-src size-ty))
                    (app ic-expr size))
               (app ic-expr e)
@@ -342,7 +336,7 @@
        [(MVect t)
         (if (completely-static-type? t)
             (Mvector-set! e1 i^ (mk-cast e2-src e2-lbl e2 e2-ty t))
-            (MVectCastedSet! e1 i^ e2 e2-ty))])]
+            (MVectCastedSet! e1 i^ (mk-cast e2-src e2-lbl e2 e2-ty t) t))])]
     [(Mvector-length (and (Ann _ (cons e-src (Dyn))) (app ic-expr e)))
      (define l-th (mk-label "mvector-length" e-src))
      (Mvector-length (mk-cast e-src l-th e DYN-TYPE MVEC-DYN-TYPE))]
