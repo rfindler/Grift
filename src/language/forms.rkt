@@ -122,7 +122,8 @@ And a type constructor "name" expecting the types of field1 and field2
   (Quote literal)    ;; immediate data in general
   ;; Node that references a piece of code identified by the UID value
   (Code-Label value)
-  (Type type)        ;; an atomic type
+  (Type type) ;; a type
+  (LabeledType type label) ;; a labeled type
   ;; Effectfull expressions
   ;; typed bindings annotations
   (Fml identifier type)
@@ -442,11 +443,11 @@ class literal constants
      Base-Type
      Grift-Fn-Type
      Grift-Ref-Type
-     Grift-Tuple-Type))
+     Grift-Tuple-Type
+     Grift-Labeled-Type))
 
-;; type known at runtime only for monotonic references, the uid is for
-;; the entire reference cell, you have to access the second component
-;; of the cell to get the type.
+(define-type Schml-Labeled-Type
+  (LabeledType Schml-Type Blame-Label))
 
 (define-type Grift-Fn-Type
   (Fn Index Grift-Type* Grift-Type))
@@ -469,6 +470,7 @@ class literal constants
 (: grift-type? (Any -> Boolean : Grift-Type))
 (define (grift-type? x)
   (or (atomic-type? x)
+      (grift-labeled? x)
       (grift-fn? x)
       (grift-ref? x)
       (grift-tuple? x)))
@@ -482,6 +484,7 @@ class literal constants
            (grift-type? (car x))
            (grift-type*? (cdr x)))))
 
+(define-predicate grift-labeled? Schml-Labeled-Type)
 (define-predicate grift-fn? Grift-Fn-Type)
 (define-predicate grift-tuple? Grift-Tuple-Type)
 #;(: grift-fn? (Any -> Boolean : Grift-Fn-Type))
