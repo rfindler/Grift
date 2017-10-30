@@ -98,8 +98,8 @@ TODO write unit tests
 ;;   apply-interp)
 
 
-(define-type Monotonic-Cast-Type
-  (->* (CoC3-Expr CoC3-Expr) (CoC3-Expr #:t1 CoC3-Expr) CoC3-Expr))
+(define-type Bidirectional-Cast-Type (CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
+(define-type Monotonic-Cast-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
 (define-type Fn-Cast-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
 (define-type Tuple-Cast-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
 (define-type Ref-Cast-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
@@ -162,7 +162,7 @@ TODO write unit tests
        [(op=? t1 t2) t1]
        [(type-dyn?$ t1) t2]
        [(type-dyn?$ t2) t1]
-       [(atomic-types?$ t1 t2) (Error (Quote "inconsistent types"))]
+       [(atomic-types?$ t1 t2) (Blame (Quote "inconsistent types"))]
        [(and$ (type-fn?$ t1) (type-fn?$ t2)
               (op=? (type-fn-arity$ t1) (type-fn-arity$ t2)))
         (Make-GLB-Two-Fn-Types types-greatest-lower-bound t1 t2)]
@@ -177,7 +177,7 @@ TODO write unit tests
        [(and$ (type-tup?$ t1) (type-tup?$ t2)
               (op<=? (type-tup-arity$ t2) (type-tup-arity$ t1)))
         (Make-GLB-Two-Tuple-Types types-greatest-lower-bound t1 t2)]
-       [else (Error (Quote "inconsistent types"))])))
+       [else (Blame (Quote "inconsistent types"))])))
     (add-cast-runtime-binding! types-greatest-lower-bound tglb-code)
     (types-greatest-lower-bound-code-label? types-greatest-lower-bound-label)
     types-greatest-lower-bound-label)
@@ -194,6 +194,7 @@ TODO write unit tests
        (CoC3-Expr #:t1-not-dyn Boolean #:t2-not-dyn Boolean)
        CoC3-Expr))
 (define-type Cast-Type (->* (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr) (CoC3-Expr) CoC3-Expr))
+(define-type Cast-Labeled-Types-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
 (define-type Cast-Tuple-Type (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr))
 (define-type Copy-Mref-Type (CoC3-Expr -> CoC3-Expr))
 (define-type Make-Coercion-Type
@@ -1083,9 +1084,9 @@ TODO write unit tests
      [(and$ (Type-GVect-Huh t1) (Type-GVect-Huh t2))
       (compile-ref-cast v (Type-GVect-Of t1) (Type-GVect-Of t2) l)]
      [(and$ (Type-MRef-Huh t1) (Type-MRef-Huh t2))
-      (compile-mbox-cast v (Type-MRef-Of t2))]
+      (compile-mbox-cast v (Type-MRef-Of t1) (Type-MRef-Of t2) l)]
      [(and$ (Type-MVect-Huh t1) (Type-MVect-Huh t2))
-      (compile-mvec-cast v (Type-MVect-Of t2))] 
+      (compile-mvec-cast v (Type-MVect-Of t1) (Type-MVect-Of t2) l)] 
      [else (Blame l)])))
 
 
@@ -1155,9 +1156,9 @@ TODO write unit tests
            [((GVect t1) (GVect t2))
             (compile-ref-cast v (Type t1) (Type t2) l)]
            [((MRef t1) (MRef t2))
-            (compile-mbox-cast v #:t1 (Type t1) (Type t2))]
+            (compile-mbox-cast v (Type t1) (Type t2) l)]
            [((MVect t1) (MVect t2))
-            (compile-mvec-cast v #:t1 (Type t1) (Type t2))]
+            (compile-mvec-cast v (Type t1) (Type t2) l)]
            [((STuple n _) (STuple m _)) #:when (<= m n)
             (compile-tuple-cast v t1 t2 l mt)]
            [(_ _) #;base-types (Blame l)])]
@@ -1177,11 +1178,11 @@ TODO write unit tests
                 (Blame l))]
            [(MRef t1-t)
             (If (Type-MRef-Huh t2)
-                (compile-mbox-cast v #:t1 (Type t1-t) (Type-MRef-Of t2))
+                (compile-mbox-cast v (Type t1-t) (Type-MRef-Of t2) l)
                 (Blame l))]
            [(MVect t1-t)
             (If (Type-MVect-Huh t2)
-                (compile-mvec-cast v #:t1 (Type t1-t) (Type-MVect-Of t2))
+                (compile-mvec-cast v (Type t1-t) (Type-MVect-Of t2) l)
                 (Blame l))]
            [(STuple n _)
             (If (and$ (Type-Tuple-Huh t2) (op<=? (Type-Tuple-num t2) (Quote n)))
@@ -1204,11 +1205,11 @@ TODO write unit tests
                 (Blame l))]
            [(MRef t2-t)
             (If (Type-MRef-Huh t1)
-                (compile-mbox-cast v (Type t2-t))
+                (compile-mbox-cast v (Type-MRef-Of t1) (Type t2-t) l)
                 (Blame l))]
            [(MVect t2-t)
             (If (Type-MVect-Huh t1)
-                (compile-mvec-cast v (Type t2-t))
+                (compile-mvec-cast v (Type-MVect-Of t1) (Type t2-t) l)
                 (Blame l))]
            [(STuple n _)
             (If (and$ (Type-Tuple-Huh t1) (op<=? (Quote n) (Type-Tuple-num t1)))
@@ -1392,7 +1393,7 @@ TODO write unit tests
          (If (dyn-immediate-tag=?$ v t2)
              (dyn-immediate-value$ v)
              (interp-project v t2 l mt))]
-        [(Type _) 
+        [(Type _)
          (If (dyn-immediate-tag=?$ v t2)
              (let*$ ([u  (dyn-box-value$ v)]
                      [t1 (dyn-box-type$ v)])
@@ -1684,11 +1685,13 @@ TODO write unit tests
 
 (: make-compile-mbox-cast
    (->* (#:interp-cast Cast-Type
-         #:greatest-lower-bound (Code-Label Uid))
+         #:greatest-lower-bound (Code-Label Uid)
+         #:bidirectional-cast Bidirectional-Cast-Type)
         Monotonic-Cast-Type))
 (define (make-compile-mbox-cast
          #:interp-cast interp-cast
-         #:greatest-lower-bound greatest-lower-bound)
+         #:greatest-lower-bound greatest-lower-bound
+         #:bidirectional-cast bidirectional-cast)
 
   (: copy-mbox-value-if-tuple : CoC3-Expr -> CoC3-Expr)
   (define (copy-mbox-value-if-tuple mref)
@@ -1700,125 +1703,130 @@ TODO write unit tests
           (Mbox-val-set! mref cv)
           cv)])))
 
-  (: code-gen-full-mbox-cast : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-full-mbox-cast e t2 l)
+  (: code-gen-full-mbox-cast : CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-full-mbox-cast e t2)
     (let*$ ([v e][t2 t2])
       (cond$
        [(Type-Dyn-Huh t2) v]
        [else
         (let*$ ([t1 (Mbox-rtti-ref v)]
-                [t3 (app-code$ greatest-lower-bound t1 t2)])
+                [t3 (app-code$ greatest-lower-bound t1 t2)]
+                [striped-t1 (Strip-Type-Of-Labels t1)]
+                [striped-t3 (Strip-Type-Of-Labels t3)])
           (cond$
-           [(op=? t1 t3) v]
+           [(op=? striped-t1 striped-t3) v]
            [else
             (Mbox-rtti-set! v t3)
             (let*$ ([v-copy (copy-mbox-value-if-tuple v)]
-                    [new-v (interp-cast v-copy t1 t3 l v)]
-                    [t4 (Mbox-rtti-ref v)])
+                    [new-v (interp-cast v-copy t1 t3 (Quote "") v)]
+                    [t4 (Mbox-rtti-ref v)]
+                    [striped-t4 (Strip-Type-Of-Labels t4)])
               (cond$
-               [(op=? t3 t4) (Mbox-val-set! v new-v) v]
+               [(op=? striped-t3 striped-t4) (Mbox-val-set! v new-v) v]
                [else v]))]))])))
 
-  (: code-gen-mbox-cast/tuple : CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-mbox-cast/tuple e t2 n l)
+  (: code-gen-mbox-cast/tuple : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-mbox-cast/tuple e t2 n)
     (let*$ ([v e]
             [t1 (Mbox-rtti-ref v)]
-            [t3 (app-code$ greatest-lower-bound t1 t2)])
+            [t3 (app-code$ greatest-lower-bound t1 t2)]
+            [striped-t1 (Strip-Type-Of-Labels t1)]
+            [striped-t3 (Strip-Type-Of-Labels t3)])
       (cond$
-       [(op=? t1 t3) v]
+       [(op=? striped-t1 striped-t3) v]
        [else
         (Mbox-rtti-set! v t3)
         (let*$ ([v-copy (Copy-Tuple n (Mbox-val-ref v))]
                 [_      (Mbox-val-set! v v-copy)]
                 ;; TODO we know that t1 is a tuple type and
                 ;; t2 is a tuple type this should build a cast tuple-in-place node
-                [new-v (interp-cast v-copy t1 t3 l v)]
-                [t4 (Mbox-rtti-ref v)])
+                [new-v (interp-cast v-copy t1 t3 (Quote "") v)]
+                [t4 (Mbox-rtti-ref v)]
+                [striped-t4 (Strip-Type-Of-Labels t4)])
           (cond$
-           [(op=? t3 t4) (Mbox-val-set! v new-v) v]
+           [(op=? striped-t3 striped-t4) (Mbox-val-set! v new-v) v]
            [else v]))])))
   
-  (: code-gen-mbox-cast/non-tuple : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-mbox-cast/non-tuple e t2 l)
+  (: code-gen-mbox-cast/non-tuple : CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-mbox-cast/non-tuple e t2)
     (let*$ ([v e]
             [t1 (Mbox-rtti-ref v)]
-            [t3 (app-code$ greatest-lower-bound t1 t2)])
+            [t3 (app-code$ greatest-lower-bound t1 t2)]
+            [striped-t1 (Strip-Type-Of-Labels t1)]
+            [striped-t3 (Strip-Type-Of-Labels t3)])
       (cond$
-       [(op=? t1 t3) v]
+       [(op=? striped-t1 striped-t3) v]
        [else
         (Mbox-rtti-set! v t3)
         (let*$ ([val   (Mbox-val-ref v)]
-                [new-v (interp-cast val t1 t3 l v)]
-                [t4 (Mbox-rtti-ref v)])
+                [new-v (interp-cast val t1 t3 (Quote "") v)]
+                [t4 (Mbox-rtti-ref v)]
+                [striped-t4 (Strip-Type-Of-Labels t4)])
           (cond$
-           [(op=? t3 t4) (Mbox-val-set! v new-v) v]
+           [(op=? striped-t3 striped-t4) (Mbox-val-set! v new-v) v]
            [else v]))])))
 
   (define interp-mbox-cast
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mbox-cast"
-                 (code$ (e t2 l) (code-gen-full-mbox-cast e t2 l)))])
-      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr] [l : CoC3-Expr])
-        : CoC3-Expr
-        (apply-code (uid!) mref t2 l))))
+                 (code$ (e t2) (code-gen-full-mbox-cast e t2)))])
+      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr]) : CoC3-Expr
+        (apply-code (uid!) mref t2))))
   
   (define interp-mbox-cast/tuple
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mbox-cast/tuple"
-                 (code$ (e t2 n l) (code-gen-mbox-cast/tuple e t2 n l)))])
-      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr] [n : CoC3-Expr] [l : CoC3-Expr])
-        : CoC3-Expr
-        (apply-code (uid!) mref t2 n l))))
+                 (code$ (e t2 n) (code-gen-mbox-cast/tuple e t2 n)))])
+      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr] [n : CoC3-Expr]) : CoC3-Expr
+        (apply-code (uid!) mref t2 n))))
 
   (define interp-mbox-cast/non-tuple
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mbox-cast/non-tuple"
-                 (code$ (e t2 l) (code-gen-mbox-cast/non-tuple e t2 l)))])
-      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr] [l : CoC3-Expr])
-        : CoC3-Expr
-        (apply-code (uid!) mref t2 l))))
+                 (code$ (e t2) (code-gen-mbox-cast/non-tuple e t2)))])
+      (lambda ([mref : CoC3-Expr] [t2 : CoC3-Expr]) : CoC3-Expr
+        (apply-code (uid!) mref t2))))
 
   (: compile-mbox-cast Monotonic-Cast-Type)
-  (define  (compile-mbox-cast e t2 [l (Quote "Monotonic")]
-                              ;; The t1 optional type allows compiling
-                              ;; away some of the code if it is provided
-                              ;; t1 is only used at compile time
-                              #:t1 [t1 : (Option CoC3-Expr) #f])
+  (define  (compile-mbox-cast e t1 t2 l)
+    (define t3 (bidirectional-cast t1 t2 l))
     (match* (t1 t2)
-      [(_ (Type (Dyn))) e]
       [((Type (STuple a _)) _)
        (define n (Quote a))
        (if (monotonic-cast-close-code-specialization?)
-           (interp-mbox-cast/tuple e t2 n l)
-           (code-gen-mbox-cast/tuple e t2 n l))]
+           (interp-mbox-cast/tuple e t3 n)
+           (code-gen-mbox-cast/tuple e t3 n))]
       [((Type (not (Dyn))) _)
        (if (monotonic-cast-close-code-specialization?)
-           (interp-mbox-cast/non-tuple e t2 l)
-           (code-gen-mbox-cast/non-tuple e t2 l))]
+           (interp-mbox-cast/non-tuple e t3)
+           (code-gen-mbox-cast/non-tuple e t3))]
       [(_ _)
        (if (monotonic-cast-inline-without-types?)
-           (code-gen-full-mbox-cast e t2 l)
-           (interp-mbox-cast e t2 l))]))
+           (code-gen-full-mbox-cast e t3)
+           (interp-mbox-cast e t3))]))
   compile-mbox-cast)
-
 
 (: make-compile-mvec-cast
    (->* (#:interp-cast Cast-Type
-         #:greatest-lower-bound (Code-Label Uid))
+         #:greatest-lower-bound (Code-Label Uid)
+         #:bidirectional-cast Bidirectional-Cast-Type)
         Monotonic-Cast-Type))
 (define (make-compile-mvec-cast
          #:interp-cast interp-cast
-         #:greatest-lower-bound greatest-lower-bound)
-  (: code-gen-full-mvec-cast : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-full-mvec-cast e t2 l)
-    (let*$ ([v e] [t2 t2] [l l])
+         #:greatest-lower-bound greatest-lower-bound
+         #:bidirectional-cast bidirectional-cast)
+  (: code-gen-full-mvec-cast : CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-full-mvec-cast e t2)
+    (let*$ ([v e] [t2 t2])
       (cond$
        [(type-dyn?$ t2) v]
        [else
         (let*$ ([t1 (Mvector-rtti-ref v)]
-                [t3 (app-code$ greatest-lower-bound t1 t2)])
+                [t3 (app-code$ greatest-lower-bound t1 t2)]
+                [striped-t1 (Strip-Type-Of-Labels t1)]
+                [striped-t3 (Strip-Type-Of-Labels t3)])
           (cond$
-           [(op=? t1 t3) v]
+           [(op=? striped-t1 striped-t3) v]
            [else
             (Mvector-rtti-set! v t3)
             (let$ ([len (Mvector-length v)])
@@ -1826,9 +1834,10 @@ TODO write unit tests
                [(atomic-type-or-not-tuple?$ t3)
                 (repeat$ (i (Quote 0) len) ()
                   (let*$ ([vi (Mvector-val-ref v i)]
-                          [cvi (interp-cast vi t1 t3 l v)]
-                          [t4 (Mvector-rtti-ref v)])
-                    (If (op=? t3 t4)
+                          [cvi (interp-cast vi t1 t3 (Quote "") v)]
+                          [t4 (Mvector-rtti-ref v)]
+                          [striped-t4 (Strip-Type-Of-Labels t4)])
+                    (If (op=? striped-t3 striped-t4)
                         (Mvector-val-set! v i cvi)
                         (Break-Repeat))))]
                [else ;; it is a tuple
@@ -1837,19 +1846,22 @@ TODO write unit tests
                     (let*$ ([vi (Mvector-val-ref v i)]
                             [cvi (Copy-Tuple n vi)])
                       (Mvector-val-set! v i cvi)
-                      (let*$ ([ccvi (interp-cast cvi t1 t3 l v)]
-                              [t4 (Mvector-rtti-ref v)])
-                        (If (op=? t3 t4)
+                      (let*$ ([ccvi (interp-cast cvi t1 t3 (Quote "") v)]
+                              [t4 (Mvector-rtti-ref v)]
+                              [striped-t4 (Strip-Type-Of-Labels t4)])
+                        (If (op=? striped-t3 striped-t4)
                             (Mvector-val-set! v i ccvi)
                             (Break-Repeat))))))]))
             v]))])))
-  (: code-gen-mvec-cast/tuple : CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-mvec-cast/tuple e t2 n l)
-    (let*$ ([v e] [t2 t2] [n n] [l l]
+  (: code-gen-mvec-cast/tuple : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-mvec-cast/tuple e t2 n)
+    (let*$ ([v e] [t2 t2] [n n]
             [t1 (Mvector-rtti-ref v)]
-            [t3 (app-code$ greatest-lower-bound t1 t2)])
+            [t3 (app-code$ greatest-lower-bound t1 t2)]
+            [striped-t1 (Strip-Type-Of-Labels t1)]
+            [striped-t3 (Strip-Type-Of-Labels t3)])
       (cond$
-       [(op=? t1 t3) v]
+       [(op=? striped-t1 striped-t3) v]
        [else
         (Mvector-rtti-set! v t3)
         (let$ ([len (Mvector-length v)])
@@ -1857,27 +1869,31 @@ TODO write unit tests
             (let*$ ([vi (Mvector-val-ref v i)]
                     [cvi (Copy-Tuple n vi)])
               (Mvector-val-set! v i cvi)
-              (let*$ ([ccvi (interp-cast cvi t1 t3 l v)]
-                      [t4 (Mvector-rtti-ref v)])
-                (If (op=? t3 t4)
+              (let*$ ([ccvi (interp-cast cvi t1 t3 (Quote "") v)]
+                      [t4 (Mvector-rtti-ref v)]
+                      [striped-t4 (Strip-Type-Of-Labels t4)])
+                (If (op=? striped-t3 striped-t4)
                     (Mvector-val-set! v i ccvi)
                     (Break-Repeat))))))
         v])))
-  (: code-gen-mvec-cast/non-tuple : CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
-  (define (code-gen-mvec-cast/non-tuple e t2 l)
+  (: code-gen-mvec-cast/non-tuple : CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (code-gen-mvec-cast/non-tuple e t2)
     (let*$ ([v e]
             [t1 (Mvector-rtti-ref v)]
-            [t3 (app-code$ greatest-lower-bound t1 t2)])
+            [t3 (app-code$ greatest-lower-bound t1 t2)]
+            [striped-t1 (Strip-Type-Of-Labels t1)]
+            [striped-t3 (Strip-Type-Of-Labels t3)])
       (cond$
-       [(op=? t1 t3) v]
+       [(op=? striped-t1 striped-t3) v]
        [else
         (Mvector-rtti-set! v t3)
         (let$ ([len (Mvector-length v)])
           (repeat$ (i (Quote 0) len) ()
             (let*$ ([vi (Mvector-val-ref v i)]
-                    [cvi (interp-cast vi t1 t3 l v)]
-                    [t4 (Mvector-rtti-ref v)])
-              (If (op=? t3 t4)
+                    [cvi (interp-cast vi t1 t3 (Quote "") v)]
+                    [t4 (Mvector-rtti-ref v)]
+                    [striped-t4 (Strip-Type-Of-Labels t4)])
+              (If (op=? striped-t3 striped-t4)
                   (Mvector-val-set! v i cvi)
                   (Break-Repeat)))))
         v])))
@@ -1885,51 +1901,174 @@ TODO write unit tests
   (define interp-mvec-cast
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mvec-cast"
-                 (code$ (v t2 l)
-                   (code-gen-full-mvec-cast v t2 l)))])
-      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr] [l : CoC3-Expr])
-        (apply-code (uid!) v t2 l))))
+                 (code$ (v t2)
+                   (code-gen-full-mvec-cast v t2)))])
+      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr])
+        (apply-code (uid!) v t2))))
 
   (define interp-mvec-cast/tuple
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mvec-cast/tuple"
-                 (code$ (v t2 n l)
-                   (code-gen-mvec-cast/tuple v t2 n l)))])
-      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr] [n : CoC3-Expr] [l : CoC3-Expr])
-        (apply-code (uid!) v t2 n l))))
+                 (code$ (v t2 n)
+                   (code-gen-mvec-cast/tuple v t2 n)))])
+      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr] [n : CoC3-Expr])
+        (apply-code (uid!) v t2 n))))
 
   (define interp-mvec-cast/non-tuple
     (let ([uid! (make-lazy-add-cast-runtime-binding!
                  "mvec-cast/non-tuple"
                  (code$ (v t2 l)
-                   (code-gen-mvec-cast/non-tuple v t2 l)))])
-      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr] [l : CoC3-Expr])
-        (apply-code (uid!) v t2 l))))
+                   (code-gen-mvec-cast/non-tuple v t2)))])
+      (lambda ([v : CoC3-Expr] [t2 : CoC3-Expr])
+        (apply-code (uid!) v t2))))
   
   (: compile-mvec-cast Monotonic-Cast-Type)
   (define (compile-mvec-cast
-           ;; This blame label is fabricated from nothing because
-           ;; monotonic references are not completely implemented.
-           [e : CoC3-Expr] [t2 : CoC3-Expr]
-           [l : CoC3-Expr (Quote "Monotonic")]
-           #:t1 [t1 : (Option CoC3-Expr) #f])
-    : CoC3-Expr 
+           [e : CoC3-Expr] [t1 : CoC3-Expr] [t2 : CoC3-Expr] [l : CoC3-Expr]) : CoC3-Expr
+    (define t3 (bidirectional-cast t1 t2 l))
     (match* (t1 t2)
-      [(_ (Type (Dyn))) e]
       [((Type (STuple a _)) _)
        (define n (Quote a))
        (if (monotonic-cast-close-code-specialization?)
-           (interp-mvec-cast/tuple e t2 n l)
-           (code-gen-mvec-cast/tuple e t2 n l))]
+           (interp-mvec-cast/tuple e t3 n)
+           (code-gen-mvec-cast/tuple e t3 n))]
       [((Type (not (Dyn))) _)
        (if (monotonic-cast-close-code-specialization?)
-           (interp-mvec-cast/non-tuple e t2 l)
-           (code-gen-mvec-cast/non-tuple e t2 l))]
+           (interp-mvec-cast/non-tuple e t3)
+           (code-gen-mvec-cast/non-tuple e t3))]
       [(_ _)
        (if (monotonic-cast-inline-without-types?)
-           (code-gen-full-mvec-cast e t2 l)
-           (interp-mvec-cast e t2 l))]))
+           (code-gen-full-mvec-cast e t3)
+           (interp-mvec-cast e t3))]))
   compile-mvec-cast)
+
+(: make-compile-bidirectional-cast (-> Bidirectional-Cast-Type))
+(define (make-compile-bidirectional-cast)
+  (define bidirectional-cast-uid : Uid (next-uid! "bidirectional-cast-normal-types"))
+  
+  (: interp-bidirectional-cast Bidirectional-Cast-Type)
+  (define (interp-bidirectional-cast t1 t2 l)
+    (apply-code bidirectional-cast-uid t1 t2 l))
+  
+  (define bidirectional-cast-code : CoC3-Code
+    (code$ (t1 t2 l)
+      (cond$
+       [(op=? t1 t2) t1]
+       [(type-dyn?$ t1) (Build-LabeledType t2 l)]
+       [(type-dyn?$ t2) (Build-LabeledType t1 l)]
+       [(atomic-types?$ t1 t2) (Blame l)]
+       [(and$ (type-fn?$ t1) (type-fn?$ t2)
+              (op=? (type-fn-arity$ t1) (type-fn-arity$ t2)))
+        (Build-LabeledType/EmptyLabelSet
+         (Make-BidirectionalCast-Two-Fn-Types bidirectional-cast-uid t1 t2 l))]
+       [(and$ (type-pbox?$ t1) (type-pbox?$ t2))
+        (Build-LabeledType/EmptyLabelSet
+         (Type-GRef
+          (interp-bidirectional-cast (type-pbox-of$ t1) (type-pbox-of$ t2) l)))]
+       [(and$ (type-pvec?$ t1) (type-pvec?$ t2))
+        (Build-LabeledType/EmptyLabelSet
+         (Type-GVect
+          (interp-bidirectional-cast (type-pvec-of$ t1) (type-pvec-of$ t2) l)))]
+       [(and$ (type-mbox?$ t1) (type-mbox?$ t2))
+        (Build-LabeledType/EmptyLabelSet
+         (Type-MRef
+          (interp-bidirectional-cast (type-mbox-of$ t1) (type-mbox-of$ t2) l)))]
+       [(and$ (type-mvec?$ t1) (type-mvec?$ t2))
+        (Build-LabeledType/EmptyLabelSet
+         (Type-MVect
+          (interp-bidirectional-cast (type-mvec-of$ t1) (type-mvec-of$ t2) l)))]
+       [(and$ (type-tup?$ t1) (type-tup?$ t2)
+              (op<=? (type-tup-arity$ t2) (type-tup-arity$ t1)))
+        (Build-LabeledType/EmptyLabelSet
+         (Make-BidirectionalCast-Two-Tuple-Types bidirectional-cast-uid t1 t2 l))]
+       [else (Blame l)])))
+  
+  (: bidirectional-cast : Grift-Type Grift-Type Blame-Label -> CoC3-Expr)
+  (define (bidirectional-cast t1 t2 l)
+    
+    (: bidirectional-cast-helper* : (Listof Grift-Type) (Listof Grift-Type) -> (Option (Listof Grift-Type)))
+    (define (bidirectional-cast-helper* l1 l2)
+      (match* (l1 l2) 
+        [(_ '()) '()]
+        [((cons a1 d1)(cons a2 d2))
+         (define a? (bidirectional-cast-helper a1 a2))
+         (define d? (bidirectional-cast-helper* d1 d2))
+         (and a? d? (cons a? d?))]))
+
+    (: sprinkle-label : ((Option Blame-Label) -> (Grift-Type -> Grift-Type)))
+    (define ((sprinkle-label l) t)
+      (define recurs (sprinkle-label l))
+      (match t
+        [(Dyn) t]
+        [(? base-type?) (LabeledType t l)]
+        [(Fn a t1* rt)
+         (LabeledType (Fn a (map recurs t1*) (recurs rt)) l)]
+        [(GRef t1) (LabeledType (GRef (recurs t1)) l)]
+        [(GVect t1) (LabeledType (GVect (recurs t1)) l)]
+        [(MRef t1) (LabeledType (MRef (recurs t1)) l)]
+        [(MVect t1) (LabeledType (MVect (recurs t1)) l)]
+        [(STuple n t*) (LabeledType (STuple n (map recurs t*)) l)]
+        [(LabeledType _ _) t]))
+
+    (define labeled? : (Boxof Boolean) (box #f))
+    
+    (: bidirectional-cast-helper : Grift-Type Grift-Type -> (Option Grift-Type))
+    (define (bidirectional-cast-helper t1 t2)
+      (match* (t1 t2)
+        [((Dyn) (Dyn)) t1]
+        [((Dyn) _)
+         (set-box! labeled? #t)
+         ;; A labeled type with some label l in this case represents a labeled
+         ;; type with each type node labeled with l. However the label does
+         ;; not appear on the inner nodes to save space.
+         (LabeledType t2 l)]
+        [(_ (Dyn))
+         (set-box! labeled? #t)
+         ;; The same comment as the other case.
+         (LabeledType t1 l)]
+        [((Fn a t1* rt1) (Fn a t2* rt2))
+         (define rt? (bidirectional-cast-helper rt1 rt2))
+         (define t*? (bidirectional-cast-helper* t1* t2*))
+         (and rt? t*? (Fn a t*? rt?))]
+        [((GRef t1) (GRef t2))
+         (define t? (bidirectional-cast-helper t1 t2))
+         (and t? (GRef t?))]
+        [((GVect t1) (GVect t2))
+         (define t? (bidirectional-cast-helper t1 t2))
+         (and t? (GVect t?))]
+        [((MRef t1) (MRef t2))
+         (define t? (bidirectional-cast-helper t1 t2))
+         (and t? (MRef t?))]
+        [((MVect t1) (MVect t2))
+         (define t? (bidirectional-cast-helper t1 t2))
+         (and t? (MVect t?))]
+        [((STuple n t1*) (STuple m t2*)) #:when (< m n)
+         (define t*? (bidirectional-cast-helper* t1* t2*))
+         (and t*? (STuple m t*?))]
+        [(t t) t] ;; base types case
+        [(_ _) #f]))
+
+    (define t? (bidirectional-cast-helper t1 t2))
+    (cond
+      ;; If at least one of the type nodes is labeled, we should label all other
+      ;; nodes with the empty label.
+      [(and t? labeled?) (Type ((sprinkle-label #f) t?))]
+      ;; If there is no labeled nodes inside, the result would be a normal type.
+      ;; A normal type is isomorphic to a labeled type with all its nodes labeled
+      ;; with the empty set of labels.
+      [t? (Type t?)]
+      ;; Otherwise, we blame {l} U {l} which is {l}
+      [else (Blame (Quote l))]))
+  
+  (: compile-bidirectional-cast Bidirectional-Cast-Type)
+  (define (compile-bidirectional-cast t1 t2 l)
+    (match* (t1 t2 l)
+      [(t t _) t]
+      [((Type t1-t) (Type t2-t) (Quote (? blame-label? l)))
+       (bidirectional-cast t1-t t2-t l)]
+      [(_ _ _) (interp-bidirectional-cast t1 t2 l)]))
+  
+  compile-bidirectional-cast)
 
 (: make-compose-fn-coercions
    (->* (#:id-coercion? (CoC3-Expr -> CoC3-Expr)

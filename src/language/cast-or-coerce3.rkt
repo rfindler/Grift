@@ -150,7 +150,11 @@
           (MVect-Coercion-Huh E)
           (MVect-Coercion-Type E)
           (MVect-Coercion E)
-          (Error E)
+          (Build-LabeledType/EmptyLabelSet E) ;; build a runtime labeled type
+          (Build-LabeledType E E) ;; build a runtime labeled type from a normal type
+          (Make-BidirectionalCast-Two-Fn-Types Uid E E E)
+          (Make-BidirectionalCast-Two-Tuple-Types Uid E E E)
+          (Strip-Type-Of-Labels E)
           ;;
           (Create-tuple (Listof E))
           (Copy-Tuple E E) ;; n v

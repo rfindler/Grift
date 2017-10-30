@@ -32,6 +32,9 @@
   (TYPE-TAG-INDEX 0)
   (TYPE-HASH-INDEX 1)
   (TYPE-INDEX-INDEX 2)
+  ;; labeled types
+  (LABELED-TYPE-TYPE-INDEX 1)
+  (LABELED-TYPE-LABEL-INDEX 2)
   ;; hyper coercions
   (HC-PRJ-TAG-MASK  #b10)
   (HC-INJ-TAG-MASK  #b01)

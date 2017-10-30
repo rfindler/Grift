@@ -124,6 +124,11 @@ And a type constructor "name" expecting the types of field1 and field2
   (Code-Label value)
   (Type type) ;; a type
   (LabeledType type label) ;; a labeled type
+  (Build-LabeledType/EmptyLabelSet type) ;; build a runtime labeled type
+  (Build-LabeledType type label) ;; build a runtime labeled type from a normal type
+  (Make-BidirectionalCast-Two-Fn-Types uid type1 type2 label)
+  (Make-BidirectionalCast-Two-Tuple-Types uid type1 type2 label)
+  (Strip-Type-Of-Labels type) ;; strip a labeled type of all labels
   ;; Effectfull expressions
   ;; typed bindings annotations
   (Fml identifier type)
@@ -446,8 +451,8 @@ class literal constants
      Grift-Tuple-Type
      Grift-Labeled-Type))
 
-(define-type Schml-Labeled-Type
-  (LabeledType Schml-Type Blame-Label))
+(define-type Grift-Labeled-Type
+  (LabeledType Grift-Type (Option Blame-Label)))
 
 (define-type Grift-Fn-Type
   (Fn Index Grift-Type* Grift-Type))
@@ -484,7 +489,7 @@ class literal constants
            (grift-type? (car x))
            (grift-type*? (cdr x)))))
 
-(define-predicate grift-labeled? Schml-Labeled-Type)
+(define-predicate grift-labeled? Grift-Labeled-Type)
 (define-predicate grift-fn? Grift-Fn-Type)
 (define-predicate grift-tuple? Grift-Tuple-Type)
 #;(: grift-fn? (Any -> Boolean : Grift-Fn-Type))
