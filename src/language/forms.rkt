@@ -131,6 +131,11 @@ And a type constructor "name" expecting the types of field1 and field2
   (Strip-Type-Of-Labels type) ;; strip a labeled type of all labels
   (BlameBoth l1 l2)
   (LabeledType-BlameLabel type)
+  (LabeledType-Int-Huh type)
+  (LabeledType-Float-Huh type)
+  (LabeledType-Character-Huh type)
+  (LabeledType-Bool-Huh type)
+  (LabeledType-Unit-Huh type)
   ;; Effectfull expressions
   ;; typed bindings annotations
   (Fml identifier type)

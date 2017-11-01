@@ -157,6 +157,11 @@
           (Strip-Type-Of-Labels E)
           (BlameBoth E E)
           (LabeledType-BlameLabel E)
+          (LabeledType-Int-Huh E)
+          (LabeledType-Float-Huh E)
+          (LabeledType-Character-Huh E)
+          (LabeledType-Bool-Huh E)
+          (LabeledType-Unit-Huh E)
           (LabeledType-Fn-Huh E)
           (LabeledType-GVect-Huh E)
           (LabeledType-GRef-Huh E)
@@ -172,6 +177,7 @@
           (LabeledType-Fn-arity E)
           (LabeledType-Fn-arg E E)
           (LabeledType-Fn-return E)
+          (Error E)
           ;;
           (Create-tuple (Listof E))
           (Copy-Tuple E E) ;; n v

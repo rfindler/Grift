@@ -1086,23 +1086,84 @@ TODO write unit tests
     (cond$
      ;; All the base cases are taken care of by (= t1 t2) in compile-med-cast
      ;; compile-med-cast should do a check to make sure (=/= t1 t2) and can be
-     [(and$ (type-fn?$ t1)
-            (type-fn?$ t2)
-            (op=? (Type-Fn-arity t1) (Type-Fn-arity t2)))
-      (compile-fn-cast v t1 t2 l)]
-     [(and$ (Type-Tuple-Huh t1) (Type-Tuple-Huh t2)
-            (op<=? (Type-Tuple-num t2) (Type-Tuple-num t1)))
-      (compile-tuple-cast v t1 t2 l mt)]
-     [(and$ (Type-GRef-Huh t1) (Type-GRef-Huh t2))
-      (compile-ref-cast v (Type-GRef-Of t1) (Type-GRef-Of t2) l)]
-     [(and$ (Type-GVect-Huh t1) (Type-GVect-Huh t2))
-      (compile-ref-cast v (Type-GVect-Of t1) (Type-GVect-Of t2) l)]
-     [(and$ (Type-MRef-Huh t1) (Type-MRef-Huh t2))
-      (compile-mbox-cast v (Type-MRef-Of t1) (Type-MRef-Of t2) l)]
-     [(and$ (Type-MVect-Huh t1) (Type-MVect-Huh t2))
-      (compile-mvec-cast v (Type-MVect-Of t1) (Type-MVect-Of t2) l)] 
-     [else (Blame l)])))
-
+     ;; TODO: emit better error messages for each failure case.
+     [(type-fn?$ t1)
+      (If (and$ (type-fn?$ t2)
+                (op=? (type-fn-arity$ t1) (type-fn-arity$ t2)))
+          (compile-fn-cast v t1 t2 l)
+          (Blame l))]
+     [(type-tup?$ t1)
+      (If (and$ (type-tup?$ t2)
+                (op<=? (type-tup-arity$ t2) (type-tup-arity$ t1)))
+          (compile-tuple-cast v t1 t2 l mt)
+          (Blame l))]
+     [(type-pbox?$ t1)
+      (If (type-pbox?$ t2)
+          (compile-ref-cast v (type-pbox-of$ t1) (type-pbox-of$ t2) l)
+          (Blame l))]
+     [(type-pvec?$ t1)
+      (If (type-pvec?$ t2)
+          (compile-ref-cast v (type-pvec-of$ t1) (type-pvec-of$ t2) l)
+          (Blame l))]
+     [(type-mbox?$ t1)
+      (If (type-mbox?$ t2)
+          (compile-mbox-cast v (type-mbox-of$ t1) (type-mbox-of$ t2) l)
+          (Blame l))]
+     [(type-mvec?$ t1)
+      (If (type-mvec?$ t2)
+          (compile-mvec-cast v (type-mvec-of$ t1) (type-mvec-of$ t2) l)
+          (Blame l))]
+     [(labeled-type-int?$ t1)
+      (If (labeled-type-int?$ t2)
+          v
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-float?$ t1)
+      (If (labeled-type-float?$ t2)
+          v
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-bool?$ t1)
+      (If (labeled-type-bool?$ t2)
+          v
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-char?$ t1)
+      (If (labeled-type-char?$ t2)
+          v
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-unit?$ t1)
+      (If (labeled-type-unit?$ t2)
+          v
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-fn?$ t1)
+      (If (and$ (labeled-type-fn?$ t2)
+                (op=? (labeled-type-fn-arity$ t1) (labeled-type-fn-arity$ t2)))
+          (compile-fn-cast/labeled v t1 t2)
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-tup?$ t1)
+      (If (and$ (labeled-type-tup?$ t2)
+                (op<=? (labeled-type-tup-arity$ t2) (labeled-type-tup-arity$ t1)))
+          (compile-tuple-cast/labeled v t1 t2 mt)
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-pbox?$ t1)
+      (If (labeled-type-pbox?$ t2)
+          (compile-ref-cast/labeled
+           v (labeled-type-pbox-of$ t1) (labeled-type-pbox-of$ t2))
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-pvec?$ t1)
+      (If (labeled-type-pvec?$ t2)
+          (compile-ref-cast/labeled
+           v (labeled-type-pvec-of$ t1) (labeled-type-pvec-of$ t2))
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-mbox?$ t1)
+      (If (labeled-type-mbox?$ t2)
+          (compile-mbox-cast/labeled
+           v (labeled-type-mbox-of$ t1) (labeled-type-mbox-of$ t2))
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [(labeled-type-mvec?$ t1)
+      (If (labeled-type-mvec?$ t2)
+          (compile-mvec-cast/labeled
+           v (labeled-type-mvec-of$ t1) (labeled-type-mvec-of$ t2))
+          (BlameBoth (labeled-type-label$ t1) (labeled-type-label$ t2)))]
+     [else (Error (Quote "interp-cast: casting from unrecognized type"))])))
 
 (: make-interp-med-cast-runtime!
    (->* (#:fn-cast     Fn-Cast-Type
@@ -1182,202 +1243,278 @@ TODO write unit tests
          v t1 t2 l [mt : CoC3-Expr ZERO-EXPR]
          #:know-not-eq? [know-not-eq? : Boolean #f])
   
-   (: aux (->* (CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr) (Boolean (Option Blame-Label)) CoC3-Expr))
-    (define (aux v t1 t2 l mt [labeled-types-cast #f] [bl? #f])
-      (match* (t1 t2)
-        ;; TODO add tests that specifically target each of these cases
-        [((Type t1-t) (Type t2-t))
-         (match* (t1-t t2-t)
-           [((Fn a _ _) (Fn a _ _))
-            (compile-fn-cast v t1 t2 l)]
-           [((GRef t1) (GRef t2))
-            (compile-ref-cast v (Type t1) (Type t2) l)]
-           [((GVect t1) (GVect t2))
-            (compile-ref-cast v (Type t1) (Type t2) l)]
-           [((MRef t1) (MRef t2))
-            (compile-mbox-cast v (Type t1) (Type t2) l)]
-           [((MVect t1) (MVect t2))
-            (compile-mvec-cast v (Type t1) (Type t2) l)]
-           [((STuple n _) (STuple m _)) #:when (<= m n)
-            (compile-tuple-cast v t1 t2 l mt)]
-           [((LabeledType _ _) (LabeledType _ _))
-            (error 'interp-cast/code-gen-med-cast "no cast between two labeled types can be known at compile-time")]
-           [(_ _) #;base-types (Blame l)])]
-        [((Type t1-t) t2) 
-         (match t1-t
-           [(Fn a _ _)
-            (if labeled-types-cast
-                (If (and$ (LabeledType-Fn-Huh t2)
-                          (op=? (Quote a) (LabeledType-Fn-arity t2)))
-                    (compile-fn-cast/labeled v (Type (LabeledType t1-t bl?)) t2)
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (and$ (Type-Fn-Huh t2) (op=? (Quote a) (Type-Fn-arity t2)))
-                    (compile-fn-cast v t1 t2 l)
-                    (Blame l)))]
-           [(GRef t1-t)
-            (if labeled-types-cast
-                (If (LabeledType-GRef-Huh t2)
-                    (let ([t (if (LabeledType? t1-t)
-                                 (Type t1-t)
-                                 (Type (LabeledType t1-t #f)))])
-                      (compile-ref-cast/labeled v t (LabeledType-GRef-Of t2)))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (Type-GRef-Huh t2)
-                    (compile-ref-cast v (Type t1-t) (Type-GRef-Of t2) l)
-                    (Blame l)))]
-           [(GVect t1-t)
-            (if labeled-types-cast
-                (If (LabeledType-GVect-Huh t2)
-                    (let ([t (if (LabeledType? t1-t)
-                                 (Type t1-t)
-                                 (Type (LabeledType t1-t #f)))])
-                      (compile-ref-cast/labeled v t (LabeledType-GVect-Of t2)))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (Type-GVect-Huh t2)
-                    (compile-ref-cast v (Type t1-t) (Type-GVect-Of t2) l)
-                    (Blame l)))]
-           [(MRef t1-t)
-            (if labeled-types-cast
-                (If (LabeledType-MRef-Huh t2)
-                    (let ([t (if (LabeledType? t1-t)
-                                 (Type t1-t)
-                                 (Type (LabeledType t1-t #f)))])
-                      (compile-mbox-cast/labeled v t (LabeledType-MRef-Of t2)))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (Type-MRef-Huh t2)
-                    (compile-mbox-cast v (Type t1-t) (Type-MRef-Of t2) l)
-                    (Blame l)))]
-           [(MVect t1-t)
-            (if labeled-types-cast
-                (If (LabeledType-MVect-Huh t2)
-                    (let ([t (if (LabeledType? t1-t)
-                                 (Type t1-t)
-                                 (Type (LabeledType t1-t #f)))])
-                      (compile-mvec-cast/labeled v t (LabeledType-MVect-Of t2)))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (Type-MVect-Huh t2)
-                    (compile-mvec-cast v (Type t1-t) (Type-MVect-Of t2) l)
-                    (Blame l)))]
-           [(STuple n _)
-            (if labeled-types-cast
-                (If (and$ (LabeledType-Tuple-Huh t2)
-                          (op<=? (LabeledType-Tuple-num t2) (Quote n)))
-                    (compile-tuple-cast/labeled v (Type (LabeledType t1-t bl?)) t2 mt)
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t2))
-                        (Blame (LabeledType-BlameLabel t2))))
-                (If (and$ (Type-Tuple-Huh t2) (op<=? (Type-Tuple-num t2) (Quote n)))
-                    (compile-tuple-cast v t1 t2 l mt)
-                    (Blame l)))]
-           [(LabeledType t l?)
-            (aux v (Type t) t2 l mt #t l?)]
-           [_ #; Base-Cases (Blame l)])]
-        [(t1 (Type t2-t))
-         (match t2-t
-           [(Fn a _ _)
-            (if labeled-types-cast
-                (If (and$ (LabeledType-Fn-Huh t1)
-                          (op=? (Quote a) (LabeledType-Fn-arity t1)))
-                    (compile-fn-cast/labeled v t1 (Type (LabeledType t2-t bl?)))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (and$ (Type-Fn-Huh t1) (op=? (Quote a) (Type-Fn-arity t1)))
-                    (compile-fn-cast v t1 t2 l)
-                    (Blame l)))]
-           [(GRef t2-t)
-            (if labeled-types-cast
-                (If (LabeledType-GRef-Huh t1)
-                    (let ([t (if (LabeledType? t2-t)
-                                 (Type t2-t)
-                                 (Type (LabeledType t2-t #f)))])
-                      (compile-ref-cast/labeled v (LabeledType-GRef-Of t1) t))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (Type-GRef-Huh t1)
-                    (compile-ref-cast v (Type-GRef-Of t1) (Type t2-t) l)
-                    (Blame l)))]
-           [(GVect t2-t)
-            (if labeled-types-cast
-                (If (LabeledType-GVect-Huh t1)
-                    (let ([t (if (LabeledType? t2-t)
-                                 (Type t2-t)
-                                 (Type (LabeledType t2-t #f)))])
-                      (compile-ref-cast/labeled v (LabeledType-GVect-Of t1) t))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (Type-GVect-Huh t1)
-                    (compile-ref-cast v (Type-GVect-Of t1) (Type t2-t) l)
-                    (Blame l)))]
-           [(MRef t2-t)
-            (if labeled-types-cast
-                (If (LabeledType-MRef-Huh t1)
-                    (let ([t (if (LabeledType? t2-t)
-                                 (Type t2-t)
-                                 (Type (LabeledType t2-t #f)))])
-                      (compile-mbox-cast/labeled v (LabeledType-MRef-Of t1) t))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (Type-MRef-Huh t1)
-                    (compile-mbox-cast v (Type-MRef-Of t1) (Type t2-t) l)
-                    (Blame l)))]
-           [(MVect t2-t)
-            (if labeled-types-cast
-                (If (LabeledType-MVect-Huh t1)
-                    (let ([t (if (LabeledType? t2-t)
-                                 (Type t2-t)
-                                 (Type (LabeledType t2-t #f)))])
-                      (compile-mvec-cast/labeled v (LabeledType-MVect-Of t1) t))
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (Type-MVect-Huh t1)
-                    (compile-mvec-cast v (Type-MVect-Of t1) (Type t2-t) l)
-                    (Blame l)))]
-           [(STuple n _)
-            (if labeled-types-cast
-                (If (and$ (LabeledType-Tuple-Huh t1)
-                          (op<=? (Quote n) (LabeledType-Tuple-num t1)))
-                    (compile-tuple-cast/labeled v t1 (Type (LabeledType t2-t bl?)) mt)
-                    (if bl?
-                        (BlameBoth (Quote bl?) (LabeledType-BlameLabel t1))
-                        (Blame (LabeledType-BlameLabel t1))))
-                (If (and$ (Type-Tuple-Huh t1) (op<=? (Quote n) (Type-Tuple-num t1)))
-                    (compile-tuple-cast v t1 t2 l mt)
-                    (Blame l)))]
-           [(LabeledType t l?)
-            (aux v t1 (Type t) l mt #t l?)]
-           [_ #;base-cases (Blame l)])] 
-        [(t1 t2)
-         (cond
-           ;; This is super hacky we can do better
-           [(med-cast-inline-without-types?)
-            (code-gen-entire-med-cast
-             v t1 t2 l mt
-             #:fn-cast    compile-fn-cast
-             #:tuple-cast compile-tuple-cast
-             #:ref-cast   compile-ref-cast
-             #:mbox-cast  compile-mbox-cast
-             #:mvec-cast  compile-mvec-cast
-             #:fn-cast/labeled    compile-fn-cast/labeled
-             #:tuple-cast/labeled compile-tuple-cast/labeled
-             #:ref-cast/labeled   compile-ref-cast/labeled
-             #:mbox-cast/labeled  compile-mbox-cast/labeled
-             #:mvec-cast/labeled  compile-mvec-cast/labeled)]
-           [else (interp-med-cast v t1 t2 l mt)])]))
+  (: aux : CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr CoC3-Expr -> CoC3-Expr)
+  (define (aux v t1 t2 l mt)
+    (match* (t1 t2)
+      ;; TODO add tests that specifically target each of these cases
+      [((Type t1-t) (Type t2-t))
+       (match* (t1-t t2-t)
+         [((Fn a _ _) (Fn a _ _))
+          (compile-fn-cast v t1 t2 l)]
+         [((GRef t1) (GRef t2))
+          (compile-ref-cast v (Type t1) (Type t2) l)]
+         [((GVect t1) (GVect t2))
+          (compile-ref-cast v (Type t1) (Type t2) l)]
+         [((MRef t1) (MRef t2))
+          (compile-mbox-cast v (Type t1) (Type t2) l)]
+         [((MVect t1) (MVect t2))
+          (compile-mvec-cast v (Type t1) (Type t2) l)]
+         [((STuple n _) (STuple m _)) #:when (<= m n)
+                                      (compile-tuple-cast v t1 t2 l mt)]
+         [((LabeledType _ _) (LabeledType _ _))
+          (error 'interp-cast/aux/labeled "no cast between two labeled types can be known at compile-time")]
+         [(_ _) #;base-types (Blame l)])]           
+      [((Type t1-t) t2) 
+       (match t1-t
+         [(Fn a _ _)
+          (If (and$ (Type-Fn-Huh t2) (op=? (Quote a) (Type-Fn-arity t2)))
+              (compile-fn-cast v t1 t2 l)
+              (Blame l))]
+         [(GRef t1-t)
+          (If (Type-GRef-Huh t2)
+              (compile-ref-cast v (Type t1-t) (Type-GRef-Of t2) l)
+              (Blame l))]
+         [(GVect t1-t)
+          (If (Type-GVect-Huh t2)
+              (compile-ref-cast v (Type t1-t) (Type-GVect-Of t2) l)
+              (Blame l))]
+         [(MRef t1-t)
+          (If (Type-MRef-Huh t2)
+              (compile-mbox-cast v (Type t1-t) (Type-MRef-Of t2) l)
+              (Blame l))]
+         [(MVect t1-t)
+          (If (Type-MVect-Huh t2)
+              (compile-mvec-cast v (Type t1-t) (Type-MVect-Of t2) l)
+              (Blame l))]
+         [(STuple n _)
+          (If (and$ (Type-Tuple-Huh t2) (op<=? (Type-Tuple-num t2) (Quote n)))
+              (compile-tuple-cast v t1 t2 l mt)
+              (Blame l))]
+         [(LabeledType t l?)
+          (aux/labeled v (Type t) t2 l? mt)]
+         [_ #; Base-Cases (Blame l)])]
+      [(t1 (Type t2-t))
+       (match t2-t
+         [(Fn a _ _)
+          (If (and$ (Type-Fn-Huh t1) (op=? (Quote a) (Type-Fn-arity t1)))
+              (compile-fn-cast v t1 t2 l)
+              (Blame l))]
+         [(GRef t2-t)
+          (If (Type-GRef-Huh t1)
+              (compile-ref-cast v (Type-GRef-Of t1) (Type t2-t) l)
+              (Blame l))]
+         [(GVect t2-t)
+          (If (Type-GVect-Huh t1)
+              (compile-ref-cast v (Type-GVect-Of t1) (Type t2-t) l)
+              (Blame l))]
+         [(MRef t2-t)
+          (If (Type-MRef-Huh t1)
+              (compile-mbox-cast v (Type-MRef-Of t1) (Type t2-t) l)
+              (Blame l))]
+         [(MVect t2-t)
+          (If (Type-MVect-Huh t1)
+              (compile-mvec-cast v (Type-MRef-Of t1) (Type t2-t) l)
+              (Blame l))]
+         [(STuple n _)
+          (If (and$ (Type-Tuple-Huh t1) (op<=? (Quote n) (Type-Tuple-num t1)))
+              (compile-tuple-cast v t1 t2 l mt)
+              (Blame l))]
+         [(LabeledType t l?)
+          (aux/labeled v t1 (Type t) l? mt)]
+         [_ #;base-cases (Blame l)])] 
+      [(t1 t2)
+       (cond
+         ;; This is super hacky we can do better
+         [(med-cast-inline-without-types?)
+          (code-gen-entire-med-cast
+           v t1 t2 l mt
+           #:fn-cast    compile-fn-cast
+           #:tuple-cast compile-tuple-cast
+           #:ref-cast   compile-ref-cast
+           #:mbox-cast  compile-mbox-cast
+           #:mvec-cast  compile-mvec-cast
+           #:fn-cast/labeled    compile-fn-cast/labeled
+           #:tuple-cast/labeled compile-tuple-cast/labeled
+           #:ref-cast/labeled   compile-ref-cast/labeled
+           #:mbox-cast/labeled  compile-mbox-cast/labeled
+           #:mvec-cast/labeled  compile-mvec-cast/labeled)]
+         [else (interp-med-cast v t1 t2 l mt)])]))
+
+  (: aux/labeled (CoC3-Expr CoC3-Expr CoC3-Expr (Option Blame-Label) CoC3-Expr -> CoC3-Expr))
+  (define (aux/labeled v t1 t2 l? mt)
+    (match* (t1 t2)
+      [((Type t1-t) t2) 
+       (match t1-t
+         [Int
+          (If (LabeledType-Int-Huh t2)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [Float
+          (If (LabeledType-Float-Huh t2)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [Bool
+          (If (LabeledType-Bool-Huh t2)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [Character
+          (If (LabeledType-Character-Huh t2)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [Unit
+          (If (LabeledType-Unit-Huh t2)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(Fn a _ _)
+          (If (and$ (LabeledType-Fn-Huh t2)
+                    (op=? (Quote a) (LabeledType-Fn-arity t2)))
+              (compile-fn-cast/labeled v (Type (LabeledType t1-t l?)) t2)
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(GRef t1-t)
+          (If (LabeledType-GRef-Huh t2)
+              (let ([t (if (LabeledType? t1-t)
+                           (Type t1-t)
+                           (Type (LabeledType t1-t #f)))])
+                (compile-ref-cast/labeled v t (LabeledType-GRef-Of t2)))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(GVect t1-t)
+          (If (LabeledType-GVect-Huh t2)
+              (let ([t (if (LabeledType? t1-t)
+                           (Type t1-t)
+                           (Type (LabeledType t1-t #f)))])
+                (compile-ref-cast/labeled v t (LabeledType-GVect-Of t2)))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(MRef t1-t)
+          (If (LabeledType-MRef-Huh t2)
+              (let ([t (if (LabeledType? t1-t)
+                           (Type t1-t)
+                           (Type (LabeledType t1-t #f)))])
+                (compile-mbox-cast/labeled v t (LabeledType-MRef-Of t2)))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(MVect t1-t)
+          (If (LabeledType-MVect-Huh t2)
+              (let ([t (if (LabeledType? t1-t)
+                           (Type t1-t)
+                           (Type (LabeledType t1-t #f)))])
+                (compile-mvec-cast/labeled v t (LabeledType-MVect-Of t2)))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(STuple n _)
+          (If (and$ (LabeledType-Tuple-Huh t2)
+                    (op<=? (LabeledType-Tuple-num t2) (Quote n)))
+              (compile-tuple-cast/labeled v (Type (LabeledType t1-t l?)) t2 mt)
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t2))
+                  (Blame (LabeledType-BlameLabel t2))))]
+         [(LabeledType _ _)
+          (error 'interp-cast/aux/labeled "impossible pattern matching")]
+         [_ #; Base-Cases (Blame l)])]
+      [(t1 (Type t2-t))
+       (match t2-t
+         [Int
+          (If (LabeledType-Int-Huh t1)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [Float
+          (If (LabeledType-Float-Huh t1)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [Bool
+          (If (LabeledType-Bool-Huh t1)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [Character
+          (If (LabeledType-Character-Huh t1)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [Unit
+          (If (LabeledType-Unit-Huh t1)
+              v
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(Fn a _ _)
+          (If (and$ (LabeledType-Fn-Huh t1)
+                    (op=? (Quote a) (LabeledType-Fn-arity t1)))
+              (compile-fn-cast/labeled v t1 (Type (LabeledType t2-t l?)))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(GRef t2-t)
+          (If (LabeledType-GRef-Huh t1)
+              (let ([t (if (LabeledType? t2-t)
+                           (Type t2-t)
+                           (Type (LabeledType t2-t l?)))])
+                (compile-ref-cast/labeled v (LabeledType-GRef-Of t1) t))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(GVect t2-t)
+          (If (LabeledType-GVect-Huh t1)
+              (let ([t (if (LabeledType? t2-t)
+                           (Type t2-t)
+                           (Type (LabeledType t2-t l?)))])
+                (compile-ref-cast/labeled v (LabeledType-GVect-Of t1) t))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(MRef t2-t)
+          (If (LabeledType-MRef-Huh t1)
+              (let ([t (if (LabeledType? t2-t)
+                           (Type t2-t)
+                           (Type (LabeledType t2-t l?)))])
+                (compile-mbox-cast/labeled v (LabeledType-MRef-Of t1) t))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(MVect t2-t)
+          (If (LabeledType-MVect-Huh t1)
+              (let ([t (if (LabeledType? t2-t)
+                           (Type t2-t)
+                           (Type (LabeledType t2-t l?)))])
+                (compile-mvec-cast/labeled v (LabeledType-MVect-Of t1) t))
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(STuple n _)
+          (If (and$ (LabeledType-Tuple-Huh t1)
+                    (op<=? (Quote n) (LabeledType-Tuple-num t1)))
+              (compile-tuple-cast/labeled v t1 (Type (LabeledType t2-t l?)) mt)
+              (if l?
+                  (BlameBoth (Quote l?) (LabeledType-BlameLabel t1))
+                  (Blame (LabeledType-BlameLabel t1))))]
+         [(LabeledType _ _)
+          (error 'interp-cast/aux/labeled "impossible pattern matching")]
+         [_ #;base-cases (Blame l)])]
+      [(_ _)
+       (error 'interp-cast/aux/labeled "impossible pattern matching")]))
     (bind-value$
      ([v v] [t1 t1] [t2 t2] [l l] [mt mt])
      (match* (t1 t2)
@@ -1395,7 +1532,6 @@ TODO write unit tests
               [(op=? t1 t2) v]
               [(atomic-types?$ t1 t2) (Blame l)]
               [else (aux v t1 t2 l mt)])])))
-
 
 (define interp-cast-project/inject-inline? (make-parameter #f))
 (define interp-cast-med-cast-inline? (make-parameter #f))
