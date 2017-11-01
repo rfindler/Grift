@@ -68,6 +68,29 @@
     (define then-cast (Lambda uid* (Castable name cast-call)))
     (values name (Code caster-fmls then-cast)))
 
+  (: build-fn-caster/labeled : Nat -> (Values Uid CoC3-Code))
+  (define (build-fn-caster/labeled ary)
+    (define name (next-uid! (string-append "labeled_fn-cast_" (number->string ary))))
+    (match-define (and caster-fmls (list fn t1 t2))
+      (map next-uid! '("f" "t1" "t2")))
+    (match-define (list fn-var t1-var t2-var)
+      (map #{Var @ Uid} #{caster-fmls :: Uid*}))
+    (define uid* (map next-uid! (make-list ary "v")))
+    (define args
+      (for/list : (Listof CoC3-Expr)
+          ([u uid*]
+           [i (in-naturals)])
+        (let* ([i  : CoC3-Expr (Quote i)]
+               [t1 : CoC3-Expr (LabeledType-Fn-arg t1-var i)]
+               [t2 : CoC3-Expr (LabeledType-Fn-arg t2-var i)])
+          (interp-cast (Var u) t2 t1 (Quote "") (Quote 0)))))
+    (define t1-ret (LabeledType-Fn-return t1-var))
+    (define t2-ret (LabeledType-Fn-return t2-var))
+    (define call (App-Fn fn-var args))
+    (define cast-call (interp-cast call t1-ret t2-ret (Quote "") (Quote 0)))
+    (define then-cast (Lambda uid* (Castable name cast-call)))
+    (values name (Code caster-fmls then-cast)))
+
   (: compile-app App-Type)
   (define compile-app App-Fn)
 
