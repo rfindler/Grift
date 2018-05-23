@@ -19,10 +19,10 @@
 +-----------------------------------------------------------------------------|#
 (define-type Grift0-Lang (Prog (List String Natural) S0-Expr))
 
-(define-type (S0-Form E)
+(define-type (G0-Form E)
   (U (Lambda Grift-Fml* (Ann E (Option Grift-Type)))
-     (Letrec S0-Bnd* E)
-     (Let S0-Bnd* E)
+     (Letrec G0-Bnd* E)
+     (Let G0-Bnd* E)
      (App E (Listof E))
      (Op Grift-Primitive (Listof E))
      (If E E E)
@@ -46,10 +46,10 @@
      (Gvector-set! E E E)
      (Gvector-ref E E)))
 
-(define-type S0-Expr
-  (Rec E (Ann (S0-Form E) Src)))
+(define-type G0-Expr
+  (Rec E (Ann (G0-Form E) Src)))
 
-(define-type S0-Expr* (Listof S0-Expr))
-(define-type S0-Bnd (Bnd Uid Grift-Type? S0-Expr))
-(define-type S0-Bnd* (Listof S0-Bnd))
+(define-type G0-Expr* (Listof G0-Expr))
+(define-type G0-Bnd (Bnd Uid Grift-Type? G0-Expr))
+(define-type G0-Bnd* (Listof G0-Bnd))
 

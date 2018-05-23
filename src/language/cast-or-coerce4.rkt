@@ -9,9 +9,11 @@
 
 (define-type Cast-or-Coerce4-Lang
   (Prog (List String Natural Grift-Type)
-        (Let-Static* CoC4-Bnd-Type*
-                     CoC4-Bnd-Crcn*
-                     CoC4-Expr)))
+    (Let-Static* CoC4-Bnd-Mu-Type*
+                 CoC4-Bnd-Type*
+                 CoC4-Bnd-Mu-Crcn*
+                 CoC4-Bnd-Crcn*
+                 CoC4-Expr)))
 
 (define-type CoC4-Expr
   (Rec E (U
@@ -35,7 +37,7 @@
           ;; Coercions
           (Quote-Coercion Immediate-Coercion)
           ;;(Compose-Coercions E E)
-                    (HC E E E E E E)
+          (HC E E E E E E)
           (HC-Inject-Huh E)
           (HC-Project-Huh E)
           (HC-Identity-Huh E)
@@ -89,8 +91,8 @@
           (Tag Tag-Symbol)
           ;;(Type-Ctr-Case E Type-Ctr-Case-Clause* E)
           ;; Binding Forms - Lambda
-	  (Letrec CoC4-Bnd-Lambda* E)
-	  (Let CoC4-Bnd-Data* E)
+          (Letrec CoC4-Bnd-Lambda* E)
+          (Let CoC4-Bnd-Data* E)
           (Var Uid)
           ;; Controll Flow
           (If E E E)
@@ -150,7 +152,6 @@
           (MVect-Coercion-Huh E)
           (MVect-Coercion-Type E)
           (MVect-Coercion E)
-          ;;
           (Create-tuple (Listof E))
           (Copy-Tuple E E)
           (Tuple-proj E E)
@@ -184,7 +185,10 @@
 (define-type CoC4-Bnd-Type* (Listof CoC4-Bnd-Type))
 (define-type CoC4-Bnd-Crcn  (Pairof Uid Compact-Coercion))
 (define-type CoC4-Bnd-Crcn* (Listof CoC4-Bnd-Crcn))
-
+(define-type CoC4-Bnd-Mu-Type  (Pairof Uid Mu-Compact-Type))
+(define-type CoC4-Bnd-Mu-Type* (Listof CoC4-Bnd-Mu-Type))
+(define-type CoC4-Bnd-Mu-Crcn  (Pairof Uid Mu-Compact-Coercion))
+(define-type CoC4-Bnd-Mu-Crcn* (Listof CoC4-Bnd-Mu-Crcn))
 
 (define-type CoC4-Gen-Data
   (U Dyn))
