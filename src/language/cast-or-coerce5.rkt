@@ -1,5 +1,7 @@
 #lang typed/racket/base
-(require "forms.rkt" "primitives.rkt" "lambda0.rkt")
+(require "forms.rkt" "primitives.rkt"
+         "lambda0.rkt"
+         "cast-or-coerce3.1.rkt")
 
 (provide (all-defined-out)
          (all-from-out "forms.rkt" "primitives.rkt"))
@@ -86,6 +88,8 @@
         (Type-Fn-Huh E)
         (Type-GRef-Huh E)
         (Type-GVect-Huh E)
+        (Type-Mu-Huh E)
+        (Type-Mu-Body E)
         ;; Tags are exposed before specify This is bad
         ;; TODO fix this after the deadline
         (Type-Tag E)

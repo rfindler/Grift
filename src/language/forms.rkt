@@ -36,7 +36,7 @@ And a type constructor "name" expecting the types of field1 and field2
      (let ([f** (syntax->list #'((field** ...) ...))])
        (with-syntax ([((type** ...) ...) (map generate-temporaries f**)])
          #'(begin
-             (struct (type** ...) name* ([field** : type**] ...) #:transparent)
+             (struct (type** ...) name* super ([field** : type**] ...) #:transparent)
              ...)))]))
 
 ;; These struct types describe how AST are mapped
@@ -57,6 +57,12 @@ And a type constructor "name" expecting the types of field1 and field2
   (Expression e)
   ;; Variable node
   (Var id)
+  ;; various imediates markers
+  (Quote literal)    ;; immediate data in general
+  ;; Node that references a piece of code identified by the UID value
+  (Code-Label value)
+  (Tag bits)         ;; an tag for an imediate value
+  (Type type)        ;; an atomic type
   )
 
 (define-forms form:simple-branch
@@ -141,12 +147,6 @@ And a type constructor "name" expecting the types of field1 and field2
   (Coerce-Tuple-In-Place cast value coercion address)
   (Cast-Tuple cast value t1 t2 lbl)
   (Cast-Tuple-In-Place cast value t1 t2 lbl address)
-  ;; various imediates markers
-  (Quote literal)    ;; immediate data in general
-  ;; Node that references a piece of code identified by the UID value
-  (Code-Label value)
-  (Tag bits)         ;; an tag for an imediate value
-  (Type type)        ;; an atomic type
   ;; Effectfull expressions
   ;; typed bindings annotations
   (Fml identifier type)
@@ -787,32 +787,16 @@ class literal constants
 (: meet+ : Grift-Type* -> Grift-Type?!)
 (define meet+ (move+ down))
 
-(define-forms
+(define-forms form:simple-branch
+  ;; The following forms are used to parameterize
+  ;; the cast forms for 1 versus 3 extra arguments
   (Coercion coercion)
   (Twosome type1 type2 lbl)
-  ;; TODO Come up with a better name for this
-  (Quote-Coercion const)
+  ;; This might be able to be gotten rid of now
   (Compose-Coercions fst snd)
   (Make-Coercion t1 t2)
-  ;; Identity Cast
-  ;; "Calculated No Op Cast"
-  (Identity)
+  ;; Id Coercion reflection
   (Id-Coercion-Huh expression)
-  (Id-Coercion)
-  ;; Projection Coercion
-  ;; "Project from dynamic at type blaming label if it fails"
-  ;; G?ˡ in most papers
-  ;; T?ˡ for this compiler
-  (Project type label)
-  ;; Injection Coercion
-  ;; "Inject into the dynamic type at type"
-  (Inject type)
-  ;; Sequence Coercion
-  ;; "Perform the first Coercion and then Another"
-  (Sequence fst snd)
-  ;; Fail Coercion
-  ;; "Fail with the label"
-  (Failed label)
   ;; Function Coercion
   ;; "Proxy a function call with args coercions and return coercion"
   (Fn-Coercion-Arity c)
@@ -822,7 +806,7 @@ class literal constants
   (Id-Fn-Coercion arity)
   (Fn-Coercion-Return-Set! fn return)
   (Fn-Coercion-Arg-Set! fn index arg)
-  ;;
+  ;; Tuples
   (CTuple num items)
   (Tuple-Coercion items)
   (Tuple-Coercion-Huh c)
@@ -830,15 +814,19 @@ class literal constants
   (Tuple-Coercion-Item c indx)
   (Id-Tuple-Coercion num)
   (Tuple-Coercion-Item-Set! tuple index item)
+  ;; We should be able to get rid of this now
   (Make-Tuple-Coercion make-uid t1 t2 lbl)
+  ;; Mediating Coercions cast two non-dynamic-types
   (Mediating-Coercion-Huh c)
   ;; Proxied Reference Coercion
   ;; "Proxy a Proxied Reference's Reads and writes"
-  (Ref read write choice) ;; the choice indicates whether it is a ref or a vector coercion
+  ;; the choice indicates whether it is a ref or a vector coercion
+  (Ref read write choice)  
   (Ref-Coercion read write flag)
   (Ref-Coercion-Read expression)
   (Ref-Coercion-Write ref)
-  (Ref-Coercion-Ref-Huh crcn) ;; checks if the ref coercion is for a ref or a vector value
+  ;; checks if the ref coercion is for a ref or a vector value
+  (Ref-Coercion-Ref-Huh crcn) 
   (MonoRef type) ;; Monotonic Reference Coercion
   (MonoVect type)
   (MRef-Coercion type)
@@ -853,18 +841,29 @@ class literal constants
   (Hybrid-Proxy-Huh clos)
   (Hybrid-Proxy-Closure hybrid)
   (Hybrid-Proxy-Coercion hybrid)
-  ;; Coercion Manipulation Stuff
+  ;; Sequence Coercions
+  ;; "Perform the first Coercion and then Another"
+  (Sequence fst snd)
   (Sequence-Coercion-Huh crcn)
   (Sequence-Coercion fst snd)
   (Sequence-Coercion-Fst seq)
   (Sequence-Coercion-Snd seq)
+  ;; Projection Coercion
+  ;; "Project from dynamic at type blaming label if it fails"
+  (Project type label)
   (Project-Coercion type label)
   (Project-Coercion-Huh crcn)
   (Project-Coercion-Type prj)
   (Project-Coercion-Label prj)
+  ;; Injection Coercion
+  ;; "Inject into the dynamic type at type"
+  (Inject type)
   (Inject-Coercion type)
   (Inject-Coercion-Huh crnc)
   (Inject-Coercion-Type inj)
+  ;; Fail Coercion
+  ;; "Fail with the label"
+  (Failed label)
   (Failed-Coercion label)
   (Failed-Coercion-Huh crcn)
   (Failed-Coercion-Label fld)
@@ -872,7 +871,6 @@ class literal constants
   (MRef-Coercion-Huh crcn)
   (MVect-Coercion-Huh crcn)
   (Fn-Coercion-Huh crcn)
-  ;; (Make-Coercion t1 t2 lbl)
   (Make-Fn-Coercion make-uid t1 t2 lbl)
   (HC project? t1 label inject? t2 med)
   (Quote-HCoercion coercion)
@@ -883,6 +881,13 @@ class literal constants
   (HC-Label hc)
   (HC-T1 hc)
   (HC-T2 hc))
+
+(define-forms form:leaf
+  (Quote-Coercion const)
+  (Identity) 
+  ;; FIXME Does this need to exist?
+  ;; Can't we just use the (Identity) "litereral" everywhere it is needed?
+  (Id-Coercion))
 
 (define-type Cast-Fml* (Listof Cast-Fml))
 (define-type Cast-Fml (Fml Uid Grift-Type))
@@ -1012,3 +1017,14 @@ class literal constants
   (match b
     [(Bnd i t e) (Bnd i t (f e))]
     [(cons i e) (cons i (f e))]))
+
+(define-type (Fun E) (Code Uid* E))
+(define-type (CLambda E) (Lambda Uid* (Castable (Option Uid) E)))
+(define-type (Bnd* E) (Listof (Pairof Uid E)))
+
+
+
+(module+ test
+  (require typed/rackunit)
+  (check-true (form:leaf? (Quote 1)))
+  )
