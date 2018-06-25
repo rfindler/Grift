@@ -11,6 +11,7 @@ TODO write unit tests
 
 (require
  racket/match
+ racket/list
  "../language/forms.rkt"
  "../language/syntax.rkt"
  "../language/cast-or-coerce3.rkt"
@@ -673,16 +674,6 @@ TODO write unit tests
          #:mvec-ref mvec-ref #:mvec-set mvec-set!
          #:compile-cast compile-cast)
   
-  #;
-  (define cast : Cast-Type
-    (cond
-      [compile-cast compile-cast]
-      [(and apply-coercion make-coercion)
-       (apply-coercion/make-coercion->compile-cast apply-coercion
-                                                   make-coercion)]
-      [else (error 'make-dynamic-operations-helpers
-                   "expected compile-cast/apply-coercion-make-coercion")]))
-  
   (: code-gen-dyn-pbox-ref Dyn-PBox-Ref-Type)
   (define (code-gen-dyn-pbox-ref dyn lbl)
     (let*$ ([v dyn] [l lbl])
@@ -840,12 +831,15 @@ TODO write unit tests
         (let$ ([dyn-fn-arg-type (Type-Fn-arg ty (Quote i))])
           (compile-cast v (Type t) dyn-fn-arg-type l))))
     (define casts-apply : CoC3-Expr (compile-app u arg-casts))
-
+    (define app-arity (length v*))
+    (define fn-of-dyns-type
+      (Type (Fn app-arity (make-list app-arity DYN-TYPE) DYN-TYPE)))
     (define ret 
       (Let `([,lu . ,le]
              [,vu . ,e]
              . ,(map (inst cons Uid CoC3-Expr) vu* e*))
         (cond$
+         ;; This condition asks if this is a boxed dynamic value?
          [(dyn-immediate-tag=?$ v FN-DYN-DYN-EXPR)
           (Let `([,uu . ,(dyn-box-value$ v)]
                  [,tyu . ,(dyn-box-type$ v)])
@@ -854,7 +848,16 @@ TODO write unit tests
               (let$ ([ret-val casts-apply]
                      [ret-ty  (Type-Fn-return ty)])
                 (compile-cast ret-val ret-ty DYN-EXPR l))]
-             [else (Blame l)]))]
+             [else
+              ;; Allthough tyu is not immediately a function type,
+              ;; recursive types need to be converted to function
+              ;; types by the casting machinery.
+              (compile-app
+               (compile-cast (Var uu) (Var tyu) fn-of-dyns-type l) 
+               (for/list ([v v*][t t*])
+                 (compile-cast v (Type t) DYN-EXPR l)))]))]
+         ;; There are currently no unboxed dynamic values
+         ;; that could be used as a function.
          [else (Blame l)])))
     (define who 'code-gen-dyn-fn-app)
     (debug off who e e* t* le ret))
